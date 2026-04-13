@@ -33,7 +33,7 @@ void l2ij(int nx, int ny, int l, int &i, int &j)
 int IA_ij(int nx, int ny, double hx, double hy, int i, int j, int is, int js, int s, int *I, double *A)
 {
     double S = 0.5 * hx * hy;
-    int l, ls,sj;
+    int l, ls;
 
     ij2l(nx, ny, i, j, l);
     ij2l(nx, ny, is, js, ls);
@@ -135,6 +135,8 @@ void* msr_sovle(void* ptr)
     int thr = arg->thr;
     double *A = arg->A;
     int *I = arg->I;
+
+    a = a; b = b; c = c; d = d; nx = nx; ny = ny; k = k; eps = eps; mi = mi; p = p; thr = thr; A = A; I = I;
 
 
 
