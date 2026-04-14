@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
     // printf("a = %lf b = %lf c = %lf d = %lf nx = %d ny = %d k = %d eps = %lf mi = %d p = %d\n", a, b, c, d, nx, ny, k, eps, mi, p);
     
 
-    if(nx <= 0 || ny <= 0 || k <= 0 || eps <= 0 || mi <= 0 || p <= 0)
+    if(nx <= 0 || ny <= 0 || k < 0 || eps <= 0 || mi <= 0 || p <= 0)
     {
         printf("Wrong usage! nx, ny, k, eps, mi and p must be > 0\n");
         return 0;
@@ -35,11 +35,18 @@ int main(int argc, char** argv) {
 
     double *A;
     int *I;
+    double *B,*x,*u,*v,*r;
 
     A = A; I = I; n = n;
 
     A = new double[N];
     I = new int[N];
+
+    B = new double[n];
+    x = new double[n];
+    u = new double[n];
+    v = new double[n];
+    r = new double[n];
 
     args *ap = new args[p];
     pthread_t *tid = new pthread_t[p];
@@ -63,6 +70,11 @@ int main(int argc, char** argv) {
         ap[thr].N = N;
         ap[thr].A = A;
         ap[thr].I = I;
+        ap[thr].B = B;
+        ap[thr].x = x;
+        ap[thr].u = u;
+        ap[thr].v = v;
+        ap[thr].r = r;
 
     }
 
@@ -75,6 +87,11 @@ int main(int argc, char** argv) {
             delete []I;
             delete []ap;
             delete []tid;
+            delete []B;
+            delete []x;
+            delete []u;
+            delete []v;
+            delete []r;
            
 
             return -1;
@@ -95,7 +112,11 @@ int main(int argc, char** argv) {
             delete []I;
             delete []ap;
             delete []tid;
-
+            delete []B;
+            delete []x;
+            delete []u;
+            delete []v;
+            delete []r;
             return -1;
         }
     }
@@ -106,6 +127,11 @@ int main(int argc, char** argv) {
     delete []I;
     delete []ap;
     delete []tid;
+    delete []B;
+    delete []x;
+    delete []u;
+    delete []v;
+    delete []r;
 
     return 0;
 }

@@ -7,6 +7,7 @@ class args
     public:
         double *A;
         int *I;
+        double *B, *x, *u, *v,*r;
         int p;
         int thr;
         int a, b, c, d;
