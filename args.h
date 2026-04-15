@@ -8,6 +8,7 @@ class args
         double *A;
         int *I;
         double *B, *x, *u, *v,*r;
+        double *sp;
         int p;
         int thr;
         int a, b, c, d;
@@ -15,6 +16,8 @@ class args
         int n,N;
         double eps;
         double (*f)(double, double);
+        double *t1;
+        int *it;
 
     void choose_func(int k)
     {

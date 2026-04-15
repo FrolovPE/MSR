@@ -50,6 +50,7 @@ int main(int argc, char** argv) {
 
     args *ap = new args[p];
     pthread_t *tid = new pthread_t[p];
+    double *sp = new double[p];
 
     int thr;
 
@@ -75,8 +76,13 @@ int main(int argc, char** argv) {
         ap[thr].u = u;
         ap[thr].v = v;
         ap[thr].r = r;
+        ap[thr].sp = sp;
+        ap[thr].it = &it;
+        
 
     }
+
+    t1 = get_full_time();
 
     for(thr = 1; thr < p; thr++)
     {
@@ -92,6 +98,7 @@ int main(int argc, char** argv) {
             delete []u;
             delete []v;
             delete []r;
+            delete []sp;
            
 
             return -1;
@@ -117,9 +124,21 @@ int main(int argc, char** argv) {
             delete []u;
             delete []v;
             delete []r;
+            delete []sp;
             return -1;
         }
     }
+
+    t1 = get_full_time() - t1;
+
+    t2 = get_full_time();
+    //Residuals
+    r1 = res1(a, b, c, d, nx, ny, x, ap[0].f);
+    r2 = res2(a, b, c, d, nx, ny, x, ap[0].f);
+    r3 = res3(a, b, c, d, nx, ny, x, ap[0].f);
+    r4 = res4(a, b, c, d, nx, ny, x, ap[0].f);
+
+    t2 = get_full_time() - t2;
     
     report(argv[0],TASK,r1,r2,r3,r4,t1,t2,it,eps,k,nx,ny,p);
 
@@ -132,6 +151,7 @@ int main(int argc, char** argv) {
     delete []u;
     delete []v;
     delete []r;
+    delete []sp;
 
     return 0;
 }

@@ -4,8 +4,7 @@
 void report(const char *name, int task, double r1, double r2, double r3, double r4, double t1, double t2,int it, double eps, int k, int nx, int ny, int p)
 {
     printf (
-        "%s : Task = %d R1 = %e R2 = %e R3 = %e R4 = %e T1 = %.2f T2 = %.2f\
-        It = %d E = %e K = %d Nx = %d Ny = %d P = %d\n",
+        "%s : Task = %d R1 = %e R2 = %e R3 = %e R4 = %e T1 = %.2f T2 = %.2f It = %d E = %e K = %d Nx = %d Ny = %d P = %d\n",
         name, task, r1, r2, r3, r4, t1, t2, it, eps, k, nx, ny, p);
 }
 
@@ -243,7 +242,7 @@ int fill_IA(int nx, int ny, double hx, double hy, int *I, double *A, int p, int 
         s = I[l + 1] - I[l];
 
         l2ij(nx, ny, l, i, j);
-        printf("Thread %d is filling row %d (i = %d , j = %d)\n",thr,l,i,j);
+        // printf("Thread %d is filling row %d (i = %d , j = %d)\n",thr,l,i,j);
         if(get_diag(nx, ny, hx, hy, i, j, nullptr, A + l))
         {
             err = -1;
@@ -432,7 +431,7 @@ double F_ij(int nx, int ny, double hx, double hy, double x0, double y0, int i, i
             4 * ( F(i + 0.5 , j - 0.5) + F(i - 0.5 , j - 1) + F(i - 1 , j - 0.5) + 
             F(i - 0.5 , j + 0.5) + F(i + 0.5 , j + 1) + F(i + 1 , j + 0.5) ) +
 
-            2 * (F(i + 1 , j) + F(i, j - 1) + F(i - 1 , j) + F(i, j + 1) + F(i + 1 , j + 1))
+            2 * (F(i + 1 , j) + F(i, j - 1) + F(i - 1 , j) + F(i, j + 1) + F(i + 1 , j + 1) + F(i - 1 , j - 1))
         );
     }
 
@@ -610,12 +609,13 @@ double scalar_product(int n, double *x, double *y, int p, int thr,double *sp/*ar
     }
     sp[thr] = s;
     reduce_sum(p);
-
+    
+    s = 0;
     for(i = 0; i < p; i++)
     {
         s += sp[i];
     }
-
+    reduce_sum(p);
     return s;
 }
 
@@ -636,6 +636,9 @@ void matrix_mult_vector_msr(double *A, int *I, int n, double *x, double *b, int 
 {
     int i,i1,i2,j,J,l;
     double s;
+    if(thr == 0)
+        memset(b, 0, n * sizeof(double));
+    reduce_sum(p);
 
     get_my_rows(n, p, thr, i1, i2);
 
@@ -653,13 +656,13 @@ void matrix_mult_vector_msr(double *A, int *I, int n, double *x, double *b, int 
     reduce_sum(p);
 }
 
-int solve_msr(int n, double *A, int *I, double * M, double *B, double *x, double *r, double *u, double *v, double eps,int maxit, int p, int thr,double *sp)
+int solve_minimal_error(int n, double *A, int *I,double *B, double *x, double *r, double *u, double *v, double eps,int maxit, int p, int thr,double *sp)
 {
     (void)A; (void)I; (void)B; (void)x; (void)u; (void)v; (void)r; (void)p; (void)thr; (void)eps; (void)maxit;
     double c1,c2,prec,b_norm,tau;
     int it;
 
-    b_norm = scalar_product(n, B, B,p,thr,sp);
+    b_norm = sqrt(scalar_product(n, B, B,p,thr,sp));
     prec = eps * eps * b_norm;
 
     matrix_mult_vector_msr(A,I,n,x,r,p,thr);
@@ -667,7 +670,7 @@ int solve_msr(int n, double *A, int *I, double * M, double *B, double *x, double
 
     for(it = 0; it < maxit; it++)
     {
-        //apply_preconditioner(...);
+        apply_preconditioner(A,I,n,v,r,u,p,thr);
         matrix_mult_vector_msr(A,I,n,v,u,p,thr);
         c1 = scalar_product(n, r, v, p, thr, sp);
         c2 = scalar_product(n, u, v, p, thr, sp);
@@ -682,17 +685,108 @@ int solve_msr(int n, double *A, int *I, double * M, double *B, double *x, double
         mult_sub_vector(n, r, u, tau, p, thr);
     }
 
+    int err = 0;
+
     if(it >= maxit)
     {
-        if(thr == 0)
-            printf("Warning: Maximum number of iterations reached without convergence!\n");
-        return -1;
+        // if(thr == 0)
+        //     printf("Warning: Maximum number of iterations reached !\n");
+        err = -1;
     }
+
+    reduce_sum(p, &err, 1);
+    if(err < 0)
+        return -1;  
+        
     return it;
 }
 
+int solve_minimal_error_full(int n, double *A, int *I,double *B, double *x, double *r, double *u, double *v, double eps,int maxit, int maxsteps, int p, int thr, double *sp)
+{
+    int step,ret,its = 0;
+    
+
+    for(step = 0; step < maxsteps; step++)
+    {
+        ret = solve_minimal_error(n, A, I, B, x, r, u, v, eps, maxit, p, thr, sp);
+        if(ret >= 0)
+        {
+            its += ret; break;
+        }
+        its += maxit;
+    }
+
+    if (step >= maxsteps)
+    {
+        return -1;
+    }
+
+    return its;
+}
 // solve_msr_full
-// apply_preconditioner
+void apply_preconditioner(double *A, int *I,int n, double *v, double *r, double *u, int p, int thr)
+{
+    //(D + wL)^t * D^{-1} * (D + wL) * v = r
+
+    double w = 1;
+
+    int i,i1,i2,k1,k2;
+    if(thr == 0)
+        memset(u, 0, n * sizeof(double));
+
+    reduce_sum(p);
+    A = A; I = I; n = n; v = v; r = r; u = u; p = p; thr = thr;
+
+    get_my_rows(n, p, thr, i1, i2);
+
+    if(thr == 0)
+    {    
+        // Solve (D + wL) * u = r
+        for(i = 0; i < n; i++)
+        {
+            double s = r[i];
+            s=s;
+            w=w;
+            k1 = I[i];
+            k2 = I[i + 1];
+            for(int k = k1; k < k2; k++)
+            {
+                int j = I[k];
+                // printf("i = %d , j = %d, k = %d\n",i,j,k);
+                if(j < i)
+                {
+                    s -= w * A[k] * u[j];
+                }
+            }
+            u[i] = s / A[i];
+        }
+
+        //Solve D^{-1} * u' = u
+        for(i = 0; i < n; i++)
+            u[i] *= A[i];
+
+
+        //Solve (D + wL)^t * v = u
+        for(i = n - 1; i >= 0; i--)
+        {
+            double s = u[i];
+            k1 = I[i];
+            k2 = I[i + 1];
+            for(int k = k1; k < k2; k++)
+            {
+                int j = I[k];
+                if(j > i)
+                {
+                    s -= w * A[k] * v[j];
+                }
+            }
+            v[i] = s / A[i];
+        }
+    }
+
+    reduce_sum(p);
+
+}
 
 void* msr_sovle(void* ptr)
 {
@@ -718,6 +812,7 @@ void* msr_sovle(void* ptr)
     double *u = arg->u;
     double *v = arg->v;
     double *r = arg->r;
+    double *sp = arg->sp;
     // int N = arg->N;
 
     arg->choose_func(k);
@@ -764,7 +859,167 @@ void* msr_sovle(void* ptr)
         print_array(B, n, MAXPRINT);
     }
 
+    
+
+    int it = solve_minimal_error_full(n, A, I, B, x, r, u, v, eps, mi, MAXSTEPS,p, thr, sp);
+    
+    if(it < 0)
+    {
+        if(thr == 0)
+            printf("Failed to solve the system! it = %d\n", it);
+        
+    }
+
+    if(thr == 0)
+    {
+        printf("Solution x:\n");
+        print_array(x, n, MAXPRINT);
+    }
+
+    if(thr == 0)
+        *arg->it = it;
 
 
     return nullptr;
+}
+
+
+double res3(double a, double b, double c, double d, int nx, int ny, double *x, double (*f) (double, double) )
+{
+    double hx = (b - a) / nx;
+    double hy = (d - c) / ny;
+    double max = 0;
+
+    for(int i = 0; i <= nx; i++)
+    {
+        for(int j = 0; j <= ny; j++)
+        {
+            double xi = a + i * hx;
+            double yj = c + j * hy;
+            double val = f(xi, yj);
+            int l = i + j * (nx + 1);
+            double r3 = fabs(x[l] - val);
+
+            if(r3 > max)
+                max = r3;
+
+        }
+    }
+
+    return max;
+}
+
+double res4(double a, double b, double c, double d, int nx, int ny, double *x, double (*f) (double, double) )
+{
+    double hx = (b - a) / nx;
+    double hy = (d - c) / ny;
+    double sum = 0;
+
+
+    for(int i = 0; i <= nx; i++)
+    {
+        for(int j = 0; j <= ny; j++)
+        {
+            double xi = a + i * hx;
+            double yj = c + j * hy;
+            double val = f(xi, yj);
+            int l = i + j * (nx + 1);
+            double r4 = fabs(x[l] - val);
+
+            sum += r4 * hx * hy;
+
+        }
+    }
+
+    return sum;
+} 
+
+double res1(double a, double b, double c, double d, int nx, int ny, double *x, double (*f) (double, double) )
+{
+    double hx = (b - a) / nx;
+    double hy = (d - c) / ny;
+    double r1 = 0;
+
+    for(int i = 0; i < nx; i++)
+    {
+        for(int j = 0; j < ny; j++)
+        {
+            int l00, l10, l01, l11;
+            ij2l(nx, ny, i, j, l00);
+            ij2l(nx, ny, i + 1, j, l10);
+            ij2l(nx, ny, i, j + 1, l01);
+            ij2l(nx, ny, i + 1, j + 1, l11);
+
+            double xi = a + i * hx;
+            double yj = c + j * hy;
+            
+            double xi1 = xi + 2.0 * hx / 3;
+            double yj1 = yj + 1.0 * hy / 3;
+
+            double x00 = x[l00];
+            double x10 = x[l10];
+            double x01 = x[l01];
+            double x11 = x[l11];
+
+            double pf1 =  (x00 + x10 + x11)/3.0;
+            double e1 = fabs(f(xi1, yj1) - pf1);
+
+            if(e1 > r1)
+                r1 = e1;
+
+            double xi2 = xi + 1.0 * hx / 3;
+            double yj2 = yj + 2.0 * hy / 3;
+            double pf2 =  (x00 + x01 + x11)/3.0;
+            double e2 = fabs(f(xi2, yj2) - pf2);
+
+            if(e2 > r1)
+                r1 = e2;
+
+        }
+    }
+    return r1;
+}
+
+double res2(double a, double b, double c, double d, int nx, int ny, double *x, double (*f) (double, double) )
+{
+    double hx = (b - a) / nx;
+    double hy = (d - c) / ny;
+    double r2 = 0;
+
+    for(int i = 0; i < nx; i++)
+    {
+        for(int j = 0; j < ny; j++)
+        {
+            int l00, l10, l01, l11;
+            ij2l(nx, ny, i, j, l00);
+            ij2l(nx, ny, i + 1, j, l10);
+            ij2l(nx, ny, i, j + 1, l01);
+            ij2l(nx, ny, i + 1, j + 1, l11);
+
+            double xi = a + i * hx;
+            double yj = c + j * hy;
+            
+            double xi1 = xi + 2.0 * hx / 3;
+            double yj1 = yj + 1.0 * hy / 3;
+
+            double x00 = x[l00];
+            double x10 = x[l10];
+            double x01 = x[l01];
+            double x11 = x[l11];
+
+            double pf1 =  (x00 + x10 + x11)/3.0;
+            double e1 = fabs(f(xi1, yj1) - pf1);
+
+            r2 += e1 * hx * hy * 0.5;
+
+            double xi2 = xi + 1.0 * hx / 3;
+            double yj2 = yj + 2.0 * hy / 3;
+            double pf2 =  (x00 + x01 + x11)/3.0;
+            double e2 = fabs(f(xi2, yj2) - pf2);
+
+            r2 += e2 * hx * hy * 0.5;
+
+        }
+    }
+    return r2;
 }

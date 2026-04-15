@@ -2,11 +2,14 @@
 #define MSR_H
 #include <stdio.h>
 #include <pthread.h>
+#include <cstring>
 #include "args.h"
 #include "extpll.h"
+#include "mytime.h"
 
 #define EPS 1e-16
-#define MAXPRINT 10
+#define MAXPRINT 7
+#define MAXSTEPS 1000000
 
 void *parallelMSR(void *arg);
 void get_my_rows(int n, int p, int thr, int &i1, int &i2);
@@ -26,6 +29,9 @@ int check_symm(int nx, int ny, double hx, double hy, int *I, double *A, int p, i
 int check_row_sum(int nx, int ny, double hx, double hy, int *I,double *A, int p, int k);
 int get_triangle(int nx, int ny, int i, int j);
 double get_aij(double *A, int *I, int i, int j);
-
-
+void apply_preconditioner(double *A, int *I,int n, double *v, double *r, double *u, int p, int thr);
+double res3(double a, double b, double c, double d, int nx, int ny, double *x, double (*f) (double, double) );
+double res4(double a, double b, double c, double d, int nx, int ny, double *x, double (*f) (double, double) );
+double res1(double a, double b, double c, double d, int nx, int ny, double *x, double (*f) (double, double) );
+double res2(double a, double b, double c, double d, int nx, int ny, double *x, double (*f) (double, double) );
 #endif
