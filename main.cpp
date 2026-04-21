@@ -48,6 +48,15 @@ int main(int argc, char** argv) {
     v = new double[n];
     r = new double[n];
 
+    for(int i = 0 ; i < n; i++)
+    {
+        B[i] = 0;
+        x[i] = 0;
+        u[i] = 0;
+        v[i] = 0;
+        r[i] = 0;
+    }
+
     args *ap = new args[p];
     pthread_t *tid = new pthread_t[p];
     double *sp = new double[p];
